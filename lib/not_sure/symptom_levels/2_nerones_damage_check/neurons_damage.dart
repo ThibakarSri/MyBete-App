@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:mybete_app/not_sure/symptom_levels/2_nerones_damage_check/fast_test.dart';
 
+import 'grip_strength.dart';
+
 class Symptom2Screen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -30,15 +32,23 @@ class Symptom2Screen extends StatelessWidget {
                 ],
               ),
             ),
-            buildTestSection(
-              context,
-              'Grip Strength & Hand Coordination',
-              [
-                'Test: Ask the person to squeeze your hands with equal force.',
-                'Sign of Issue: If one hand is much weaker or unresponsive, it could indicate nerve damage or a stroke.',
-                'Finger-to-Nose Test: Ask the person to touch their nose, then touch your finger multiple times.',
-                'Sign of Issue: If they miss or struggle with coordination, there may be brain or nerve impairment.',
-              ],
+            GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => GripCoordinationScreen()),
+                );
+              },
+              child: buildTestSection(
+                context,
+                'Grip Strength & Hand Coordination',
+                [
+                  'Test: Ask the person to squeeze your hands with equal force.',
+                  'Sign of Issue: If one hand is much weaker or unresponsive, it could indicate nerve damage or a stroke.',
+                  'Finger-to-Nose Test: Ask the person to touch their nose, then touch your finger multiple times.',
+                  'Sign of Issue: If they miss or struggle with coordination, there may be brain or nerve impairment.',
+                ],
+              ),
             ),
             buildTestSection(
               context,

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'dart:async';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class Symptom1Screen extends StatefulWidget {
   @override
@@ -14,88 +14,9 @@ class _Symptom1ScreenState extends State<Symptom1Screen> {
   int smallBottles = 0;
   int mediumBottles = 0;
   int largeBottles = 0;
-  DateTime? startTime;
-  Timer? timer;
-  Duration remainingTime = Duration(hours: 24);
-  bool isTimerRunning = false;
 
-  @override
-  void initState() {
-    super.initState();
-    loadTimerState();
-  }
-
-  @override
-  void dispose() {
-    timer?.cancel();
-    super.dispose();
-  }
-
-  Future<void> loadTimerState() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    bool savedIsTimerRunning = prefs.getBool('isTimerRunning') ?? false;
-    if (savedIsTimerRunning) {
-      int? savedStartTime = prefs.getInt('startTime');
-      if (savedStartTime != null) {
-        startTime = DateTime.fromMillisecondsSinceEpoch(savedStartTime);
-        setState(() {
-          isTimerRunning = true;
-        });
-        startTimer();
-      }
-    }
-  }
-
-  Future<void> saveTimerState() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('isTimerRunning', isTimerRunning);
-    if (isTimerRunning && startTime != null) {
-      await prefs.setInt('startTime', startTime!.millisecondsSinceEpoch);
-    } else {
-      await prefs.remove('startTime');
-    }
-  }
-
-  void startTimer() {
-    setState(() {
-      startTime = DateTime.now();
-      isTimerRunning = true;
-    });
-    saveTimerState();
-    timer = Timer.periodic(Duration(seconds: 1), (timer) {
-      setState(() {
-        remainingTime = Duration(hours: 24) - DateTime.now().difference(startTime!);
-        if (remainingTime.isNegative) {
-          remainingTime = Duration.zero;
-          timer.cancel();
-          showResultDialog();
-        }
-      });
-    });
-  }
-
-  void stopTimer() {
-    setState(() {
-      isTimerRunning = false;
-      timer?.cancel();
-    });
-    saveTimerState();
-  }
-
-  void resetTimer() {
-    setState(() {
-      smallGlasses = 0;
-      mediumGlasses = 0;
-      largeGlasses = 0;
-      smallBottles = 0;
-      mediumBottles = 0;
-      largeBottles = 0;
-      remainingTime = Duration(hours: 24);
-      isTimerRunning = false;
-      timer?.cancel();
-    });
-    saveTimerState();
-  }
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
 
   double getTotalWaterIntake() {
     double total = (smallGlasses * 200 +
@@ -108,32 +29,228 @@ class _Symptom1ScreenState extends State<Symptom1Screen> {
     return total;
   }
 
-  void showResultDialog() {
+  Future<void> _saveData() async {
     double totalIntake = getTotalWaterIntake();
-    String message;
+    try {
+      String today = DateTime.now().toIso8601String().split('T')[0];
+      String userId = _auth.currentUser!.uid; // Get the current user's ID
 
-    if (totalIntake > 5) {
-      message = "You might have extreme thirst. Monitor your intake and check for other symptoms.";
-    } else if (totalIntake >= 2 && totalIntake <= 3) {
-      message = "Your water intake is healthy!";
-    } else {
-      message = "Your water intake is within a normal range.";
+      QuerySnapshot snapshot = await _firestore
+          .collection('water_intake_records')
+          .where('date', isEqualTo: today)
+          .where('userId', isEqualTo: userId) // Filter by user ID
+          .get();
+
+      if (snapshot.docs.isNotEmpty) {
+        DocumentSnapshot existingRecord = snapshot.docs.first;
+        double existingIntake = existingRecord['intake'];
+        double updatedIntake = existingIntake + totalIntake;
+
+        await _firestore
+            .collection('water_intake_records')
+            .doc(existingRecord.id)
+            .update({
+          'intake': updatedIntake,
+          'status': updatedIntake > 5
+              ? 'Extreme'
+              : (updatedIntake >= 2 && updatedIntake <= 3 ? 'Healthy' : 'Normal'),
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Water intake updated for today!')),
+        );
+      } else {
+        await _firestore.collection('water_intake_records').add({
+          'date': today,
+          'intake': totalIntake,
+          'status': totalIntake > 5
+              ? 'Extreme'
+              : (totalIntake >= 2 && totalIntake <= 3 ? 'Healthy' : 'Normal'),
+          'userId': userId, // Include the user ID
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Data saved successfully!')),
+        );
+      }
+    } catch (e) {
+      print('Error saving data: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to save data. Please try again.')),
+      );
     }
+  }
+
+  Future<void> _clearRecords() async {
+    String userId = _auth.currentUser!.uid; // Get the current user's ID
+
+    try {
+      QuerySnapshot snapshot = await _firestore
+          .collection('water_intake_records')
+          .where('userId', isEqualTo: userId) // Filter by user ID
+          .get();
+      for (var doc in snapshot.docs) {
+        await _firestore.collection('water_intake_records').doc(doc.id).delete();
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('All records cleared!')),
+      );
+    } catch (e) {
+      print('Error clearing records: $e');
+    }
+  }
+
+  void _viewData() async {
+    String userId = _auth.currentUser!.uid; // Get the current user's ID
+
+    QuerySnapshot snapshot = await _firestore
+        .collection('water_intake_records')
+        .where('userId', isEqualTo: userId) // Filter by user ID
+        .orderBy('date', descending: true)
+        .get();
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text('24-Hour Water Intake Result'),
-        content: Text(message),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-            },
-            child: Text('OK'),
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: Color(0xFFEEF5FA), // Light background
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(15),
           ),
-        ],
-      ),
+          title: Text(
+            'Saved Data',
+            style: TextStyle(
+              color: Color(0xFF06333B), // Dark text
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: ListView(
+              shrinkWrap: true,
+              children: snapshot.docs.map((doc) {
+                final data = doc.data() as Map<String, dynamic>;
+                String status = data['status'];
+                IconData icon = status == 'Extreme' ? Icons.warning : Icons.check;
+                Color iconColor = status == 'Extreme' ? Color(0xFFE28869) : Color(0xFF288994);
+
+                return Card(
+                  elevation: 2,
+                  margin: EdgeInsets.symmetric(vertical: 5),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  color: Color(0xFF96D8E3),
+                  child: ListTile(
+                    leading: Icon(icon, color: iconColor),
+                    title: Text(
+                      'Date: ${data['date']}',
+                      style: TextStyle(
+                        color: Color(0xFF06333B),
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    subtitle: Text(
+                      'Intake: ${data['intake']} L\nStatus: $status',
+                      style: TextStyle(
+                        color: Color(0xFF245D6B),
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(
+                'Close',
+                style: TextStyle(
+                  color: Color(0xFF288994),
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _calculateRisk() async {
+    String userId = _auth.currentUser!.uid; // Get the current user's ID
+
+    QuerySnapshot snapshot = await _firestore
+        .collection('water_intake_records')
+        .where('userId', isEqualTo: userId) // Filter by user ID
+        .orderBy('date', descending: true)
+        .get();
+
+    int extremeCount = 0;
+    int healthyCount = 0;
+
+    for (var doc in snapshot.docs) {
+      final data = doc.data() as Map<String, dynamic>;
+      String status = data['status'];
+      if (status == 'Extreme') {
+        extremeCount++;
+      } else if (status == 'Healthy') {
+        healthyCount++;
+      }
+    }
+
+    String result =
+    extremeCount > healthyCount ? 'Risk of Diabetes' : 'You are Healthy!';
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: Color(0xffeef6fa), // Light background
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(15),
+          ),
+          title: Text(
+            'Calculation Result',
+            style: TextStyle(
+              color: Color(0xFF06333B), // Dark text
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Extreme Intake Days: $extremeCount\nHealthy Intake Days: $healthyCount',
+                style: TextStyle(
+                  color: Color(0xFF245D6B),
+                ),
+              ),
+              SizedBox(height: 10),
+              Text(
+                'Result: $result',
+                style: TextStyle(
+                  color: extremeCount > healthyCount ? Color(0xFFE28869) : Color(0xFF288994),
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(
+                'Close',
+                style: TextStyle(
+                  color: Color(0xFF288994),
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -141,102 +258,180 @@ class _Symptom1ScreenState extends State<Symptom1Screen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Feeling Extra Thirsty (Polydipsia)'),
+        title: Text(
+          'Feeling Extra Thirsty (Polydipsia)',
+          style: TextStyle(
+            color: Color(0xFFEEFAFA), // Light text
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        backgroundColor: Color(0xFF288994), // Primary color
+        elevation: 0,
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Step 1: How many glasses of water did you drink today?',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            SizedBox(height: 10),
-            buildWaterIntakeRow('Small (200ml)', smallGlasses, (value) {
-              setState(() {
-                smallGlasses = value;
-              });
-            }),
-            buildWaterIntakeRow('Medium (250ml)', mediumGlasses, (value) {
-              setState(() {
-                mediumGlasses = value;
-              });
-            }),
-            buildWaterIntakeRow('Large (300ml)', largeGlasses, (value) {
-              setState(() {
-                largeGlasses = value;
-              });
-            }),
-            SizedBox(height: 20),
-            Text(
-              'Step 2: How many bottles of water did you drink today?',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            SizedBox(height: 10),
-            buildWaterIntakeRow('Small (500ml)', smallBottles, (value) {
-              setState(() {
-                smallBottles = value;
-              });
-            }),
-            buildWaterIntakeRow('Medium (750ml)', mediumBottles, (value) {
-              setState(() {
-                mediumBottles = value;
-              });
-            }),
-            buildWaterIntakeRow('Large (1L)', largeBottles, (value) {
-              setState(() {
-                largeBottles = value;
-              });
-            }),
-            SizedBox(height: 20),
-            Text(
-              'Step 3: Here’s your total water intake:',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            SizedBox(height: 10),
-            Text(
-              '${getTotalWaterIntake().toStringAsFixed(2)} liters',
-              style: TextStyle(fontSize: 18),
-            ),
-            SizedBox(height: 20),
-            if (getTotalWaterIntake() > 5)
+      body: Container(
+        color: Color(0xFFEEF9FA), // Light background
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            children: [
               Text(
-                'You might have extreme thirst. Monitor your intake and check for other symptoms.',
-                style: TextStyle(fontSize: 18, color: Colors.red),
-              )
-            else if (getTotalWaterIntake() >= 2 && getTotalWaterIntake() <= 3)
-              Text(
-                'Your water intake is healthy!',
-                style: TextStyle(fontSize: 18, color: Colors.green),
-              )
-            else
-              Text(
-                'Your water intake is within a normal range.',
-                style: TextStyle(fontSize: 18, color: Colors.orange),
+                'Enter your water intake today:',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF06333B), // Dark text
+                ),
               ),
-            SizedBox(height: 20),
-            Text(
-              'Time remaining: ${remainingTime.inHours}:${(remainingTime.inMinutes % 60).toString().padLeft(2, '0')}:${(remainingTime.inSeconds % 60).toString().padLeft(2, '0')}',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            SizedBox(height: 20),
+              SizedBox(height: 20),
+              Expanded(
+                child: ListView(
+                  children: [
+                    buildWaterIntakeCard(
+                      'Small Glass (200ml)',
+                      smallGlasses,
+                      Icons.local_drink,
+                          (value) {
+                        setState(() {
+                          smallGlasses = value;
+                        });
+                      },
+                    ),
+                    buildWaterIntakeCard(
+                      'Medium Glass (250ml)',
+                      mediumGlasses,
+                      Icons.local_drink,
+                          (value) {
+                        setState(() {
+                          mediumGlasses = value;
+                        });
+                      },
+                    ),
+                    buildWaterIntakeCard(
+                      'Large Glass (300ml)',
+                      largeGlasses,
+                      Icons.local_drink,
+                          (value) {
+                        setState(() {
+                          largeGlasses = value;
+                        });
+                      },
+                    ),
+                    buildWaterIntakeCard(
+                      'Small Bottle (500ml)',
+                      smallBottles,
+                      Icons.local_drink, // Bottle icon
+                          (value) {
+                        setState(() {
+                          smallBottles = value;
+                        });
+                      },
+                    ),
+                    buildWaterIntakeCard(
+                      'Medium Bottle (750ml)',
+                      mediumBottles,
+                      Icons.local_drink, // Bottle icon
+                          (value) {
+                        setState(() {
+                          mediumBottles = value;
+                        });
+                      },
+                    ),
+                    buildWaterIntakeCard(
+                      'Large Bottle (1L)',
+                      largeBottles,
+                      Icons.local_drink, // Bottle icon
+                          (value) {
+                        setState(() {
+                          largeBottles = value;
+                        });
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(height: 20),
+              Text(
+                'Total Intake: ${getTotalWaterIntake().toStringAsFixed(2)} L',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF06333B), // Dark text
+                ),
+              ),
+              SizedBox(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _buildActionButton('Save Data', _saveData, Color(0xFF288994)),
+                  _buildActionButton('View Data', _viewData, Color(0xFF288994)),
+                ],
+              ),
+              SizedBox(height: 10),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _buildActionButton('Calculate Risk', _calculateRisk, Color(0xFF288994)),
+                  _buildActionButton('Clear Records', _clearRecords, Color(0xFFE28869)),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget buildWaterIntakeCard(
+      String label, int count, IconData icon, ValueChanged<int> onChanged) {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(15),
+      ),
+      margin: EdgeInsets.symmetric(vertical: 8),
+      color: Color(0xFFF1F5F6),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
             Row(
-              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                ElevatedButton(
-                  onPressed: isTimerRunning ? null : startTimer,
-                  child: Text('Start Timer'),
+                Icon(icon, color: Color(0xFF288994)), // Primary color
+                SizedBox(width: 10),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF06333B), // Dark text
+                  ),
                 ),
-                SizedBox(width: 20),
-                ElevatedButton(
-                  onPressed: isTimerRunning ? stopTimer : null,
-                  child: Text('Stop Timer'),
+              ],
+            ),
+            Row(
+              children: [
+                IconButton(
+                  icon: Icon(Icons.remove, color: Color(0xFF288994)),
+                  onPressed: count > 0
+                      ? () {
+                    onChanged(count - 1);
+                  }
+                      : null,
                 ),
-                SizedBox(width: 20),
-                ElevatedButton(
-                  onPressed: resetTimer,
-                  child: Text('Reset Timer'),
+                Text(
+                  '$count',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF06333B), // Dark text
+                  ),
+                ),
+                IconButton(
+                  icon: Icon(Icons.add, color: Color(0xFF288994)),
+                  onPressed: () {
+                    onChanged(count + 1);
+                  },
                 ),
               ],
             ),
@@ -246,29 +441,24 @@ class _Symptom1ScreenState extends State<Symptom1Screen> {
     );
   }
 
-  Widget buildWaterIntakeRow(String label, int count, Function(int) onChanged) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(label, style: TextStyle(fontSize: 16)),
-        Row(
-          children: [
-            IconButton(
-              icon: Icon(Icons.remove),
-              onPressed: () {
-                if (count > 0) onChanged(count - 1);
-              },
-            ),
-            Text('$count', style: TextStyle(fontSize: 16)),
-            IconButton(
-              icon: Icon(Icons.add),
-              onPressed: () {
-                onChanged(count + 1);
-              },
-            ),
-          ],
+  Widget _buildActionButton(String text, VoidCallback onPressed, Color color) {
+    return ElevatedButton(
+      onPressed: onPressed,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: color,
+        padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
         ),
-      ],
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 16,
+          color: Color(0xFFF1FAEE), // Light text
+          fontWeight: FontWeight.bold,
+        ),
+      ),
     );
   }
 }

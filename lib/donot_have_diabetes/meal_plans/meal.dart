@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'meal_category.dart'; // Make sure to create this page
 
+
 void main() {
   runApp(const MyApp());
 }
@@ -52,7 +53,7 @@ class MealPlannerScreen extends StatelessWidget {
                       ShaderMask(
                         shaderCallback: (bounds) => const LinearGradient(
                           colors: [
-                            Color(0xFF0066FF),
+                            Color(0xFF00FAFF),
                             Color(0xFF00CCFF),
                           ],
                           begin: Alignment.topLeft,
@@ -70,73 +71,6 @@ class MealPlannerScreen extends StatelessWidget {
 
                       const SizedBox(height: 24),
 
-                      // Today's Progress Title
-                      ShaderMask(
-                        shaderCallback: (bounds) => const LinearGradient(
-                          colors: [
-                            Color(0xFF07234B),
-                            Color(0xFF00CCFF),
-                          ],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ).createShader(bounds),
-                        child: const Text(
-                          'Today\'s Progress',
-                          style: TextStyle(
-                            fontSize: 25,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-
-                      const SizedBox(height: 24),
-
-                      // Nutrition Progress Indicators
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: const [
-                          NutritionProgressIndicator(
-                            value: 0.29,
-                            label: 'Carbs',
-                            color: Color(0xFFFFDD00),
-                          ),
-                          NutritionProgressIndicator(
-                            value: 0.65,
-                            label: 'Protein',
-                            color: Color(0xFFFF6600),
-                          ),
-                          NutritionProgressIndicator(
-                            value: 0.25,
-                            label: 'Vitamins',
-                            color: Color(0xFF00FF00),
-                          ),
-                          NutritionProgressIndicator(
-                            value: 0.20,
-                            label: 'Sugar',
-                            color: Color(0xFFFF0000),
-                          ),
-                          NutritionProgressIndicator(
-                            value: 0.05,
-                            label: 'Fat',
-                            color: Color(0xFFFF0000),
-                          ),
-                        ],
-                      ),
-
-                      const SizedBox(height: 40),
-
-                      // Eaten Section
-                      const Text(
-                        'Eaten',
-                        style: TextStyle(
-                          fontSize: 28,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black,
-                        ),
-                      ),
-
-                      const SizedBox(height: 16),
 
                       // Calories Display
                       Row(
@@ -170,23 +104,30 @@ class MealPlannerScreen extends StatelessWidget {
 
                           const SizedBox(width: 24),
 
-                          // Food and Calorie Icon
-                          Image.network(
-                            'https://i.imgur.com/JHy6oQw.png',
+                          // Food and Calorie Icon - CHANGED TO ASSET
+                          Image.asset(
+                            'lib/donot_have_diabetes/meal_plans/meal_images/calories (1).png', // Update with your actual icon path
                             width: 100,
                             height: 100,
-                            errorBuilder: (context, error, stackTrace) =>
-                                Container(
-                                  width: 100,
-                                  height: 100,
-                                  color: Colors.grey.shade200,
-                                  child: const Icon(Icons.fastfood, size: 40),
-                                ),
+                            errorBuilder: (context, error, stackTrace) {
+                              print('Error loading food icon: $error'); // Added for debugging
+                              return Container(
+                                width: 100,
+                                height: 100,
+                                color: Colors.grey.shade200,
+                                child: const Icon(Icons.fastfood, size: 40),
+                              );
+                            },
                           ),
                         ],
                       ),
 
+                      // Add the Water Tracker Widget Here
+                      const WaterTracker(),  // Add this line to display the water tracker widget
+
                       const SizedBox(height: 40),
+
+
 
                       // Select Your Meal Section
                       ShaderMask(
@@ -219,28 +160,28 @@ class MealPlannerScreen extends StatelessWidget {
                             // Breakfast Card
                             _mealCard(
                               context,
-                              imageUrl: 'lib/donot_have_diabetes/meal_plans/meal images/breakfast.jpg',
+                              imageUrl: 'lib/donot_have_diabetes/meal_plans/meal_images/breakfast.jpg',
                               label: 'Breakfast',
                             ),
                             const SizedBox(width: 16),
                             // Lunch Card
                             _mealCard(
                               context,
-                              imageUrl: 'donot_have_diabetes/meal_plans/meal images/lunch.jpg',
+                              imageUrl: 'lib/donot_have_diabetes/meal_plans/meal_images/lunch.jpg',
                               label: 'Lunch',
                             ),
                             const SizedBox(width: 16),
                             // Dinner Card
                             _mealCard(
                               context,
-                              imageUrl: 'donot_have_diabetes/meal_plans/meal images/dinner.jpg',
+                              imageUrl: 'lib/donot_have_diabetes/meal_plans/meal_images/dinner.jpg',
                               label: 'Dinner',
                             ),
                             const SizedBox(width: 16),
                             // Snack Card
                             _mealCard(
                               context,
-                              imageUrl: 'donot_have_diabetes/meal_plans/meal images/snack.jpg',
+                              imageUrl: 'lib/donot_have_diabetes/meal_plans/meal_images/snack.jpg',
                               label: 'Snack',
                             ),
                           ],
@@ -248,8 +189,7 @@ class MealPlannerScreen extends StatelessWidget {
                       ),
 
                       const SizedBox(height: 24),
-
-                ],
+                    ],
                   ),
                 ),
               ),
@@ -299,7 +239,9 @@ class MealPlannerScreen extends StatelessWidget {
     );
   }
 
-  // Helper function to generate meal cards
+
+
+  // Helper function to generate meal cards with label overlaid on image
   Widget _mealCard(BuildContext context, {required String imageUrl, required String label}) {
     return GestureDetector(
       onTap: () {
@@ -311,7 +253,7 @@ class MealPlannerScreen extends StatelessWidget {
       },
       child: Container(
         height: 180,
-        width: 180,
+        width: 280,
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(24),
@@ -323,41 +265,58 @@ class MealPlannerScreen extends StatelessWidget {
             ),
           ],
         ),
-        child: Row(
+        child: Stack(
           children: [
             // Meal Image
             ClipRRect(
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(24),
-                bottomLeft: Radius.circular(24),
-              ),
-              child: Image.network(
+              borderRadius: BorderRadius.circular(24),
+              child: Image.asset(
                 imageUrl,
-                width: 180,
+                width: 280,
                 height: 180,
                 fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) => Container(
-                  width: 180,
-                  height: 180,
-                  color: Colors.grey.shade200,
-                  child: const Icon(Icons.image, size: 40),
+                errorBuilder: (context, error, stackTrace) {
+                  print('Error loading image: $imageUrl - $error');
+                  return Container(
+                    width: 280,
+                    height: 180,
+                    color: Colors.grey.shade200,
+                    child: const Icon(Icons.image, size: 100),
+                  );
+                },
+              ),
+            ),
+            // Semi-transparent overlay for better text visibility
+            Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(24),
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withOpacity(0.1),
+                    Colors.black.withOpacity(0.5),
+                  ],
                 ),
               ),
             ),
             // Meal Label
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Align(
-                  alignment: Alignment.centerRight,
-                  child: Text(
-                    label,
-                    style: TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black.withOpacity(0.8),
+            Positioned(
+              bottom: 16,
+              left: 16,
+              child: Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                  shadows: [
+                    Shadow(
+                      offset: Offset(1, 1),
+                      blurRadius: 3,
+                      color: Color.fromARGB(255, 0, 0, 0),
                     ),
-                  ),
+                  ],
                 ),
               ),
             ),
@@ -367,6 +326,9 @@ class MealPlannerScreen extends StatelessWidget {
     );
   }
 }
+
+
+
 
 class NutritionProgressIndicator extends StatelessWidget {
   final double value;
@@ -432,13 +394,175 @@ class NutritionProgressIndicator extends StatelessWidget {
           style: const TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.bold,
-            color: Colors.black,
+
           ),
         ),
       ],
     );
   }
 }
+
+class WaterTracker extends StatefulWidget {
+  const WaterTracker({Key? key}) : super(key: key);
+
+  @override
+  _WaterTrackerState createState() => _WaterTrackerState();
+}
+
+class _WaterTrackerState extends State<WaterTracker> {
+  double _waterIntake = 0.0;
+  final double _goal = 2000.0; // Target goal for daily water intake in ml
+
+  void _incrementWater() {
+    setState(() {
+      if (_waterIntake < _goal) {
+        _waterIntake += 200.0; // Increase by 200 ml
+      }
+    });
+  }
+
+  void _decrementWater() {
+    setState(() {
+      if (_waterIntake > 0) {
+        _waterIntake -= 200.0; // Decrease by 200 ml
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Water Tracker',
+            style: TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+              shadows: [
+                Shadow(offset: Offset(1.5, 1.5), blurRadius: 3, color: Colors.black38),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          // Progress Bar for water intake with gradient and shadow effect
+          Container(
+            width: double.infinity,
+            height: 8,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(5),
+              color: Colors.grey.shade300,
+            ),
+            child: LinearProgressIndicator(
+              value: _waterIntake / _goal,
+              backgroundColor: Colors.grey.shade200,
+              valueColor: const AlwaysStoppedAnimation<Color>(Colors.blue),
+              minHeight: 8,
+            ),
+          ),
+          const SizedBox(height: 12),
+          // Display current water intake with better font styling
+          Text(
+            '$_waterIntake ml / $_goal ml',
+            style: const TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w600,
+              color: Colors.white,
+              shadows: [
+                Shadow(offset: Offset(1.5, 1.5), blurRadius: 3, color: Colors.black38),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Add Button with gradient
+              Container(
+                width: 150,
+                child: ElevatedButton(
+                  onPressed: _incrementWater,
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    backgroundColor: Colors.transparent, // Make button background transparent
+                  ).copyWith(
+                    backgroundColor: MaterialStateProperty.all(Colors.transparent),
+                  ),
+                  child: Ink(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Colors.blue, Colors.lightBlueAccent],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Container(
+                      constraints: const BoxConstraints(minHeight: 50),
+                      alignment: Alignment.center,
+                      child: const Text(
+                        'Add 200 ml',
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 20),
+              // Remove Button with gradient
+              Container(
+                width: 150,
+                child: ElevatedButton(
+                  onPressed: _decrementWater,
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    backgroundColor: Colors.transparent, // Make button background transparent
+                  ).copyWith(
+                    backgroundColor: MaterialStateProperty.all(Colors.transparent),
+                  ),
+                  child: Ink(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Colors.red, Colors.orange],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Container(
+                      constraints: const BoxConstraints(minHeight: 50),
+                      alignment: Alignment.center,
+                      child: const Text(
+                        'Remove 200 ml',
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 
 class NavBarItem extends StatelessWidget {
   final IconData icon;

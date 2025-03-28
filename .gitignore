@@ -48,3 +48,14 @@ app.*.map.json
 .env
 
 /lib/firebase_options.dart
+# Ignore Gradle project-specific cache directory
+.gradle
+
+# Ignore Gradle build output directory
+build
+
+#Ignore Android Gradle Files
+/android
+/gradle
+/pubspec.lock
+/local.properties

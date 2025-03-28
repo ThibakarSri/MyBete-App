@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
 
 class SupportFeedbackScreen extends StatefulWidget {
   @override
@@ -8,48 +10,179 @@ class SupportFeedbackScreen extends StatefulWidget {
 
 class _SupportFeedbackScreenState extends State<SupportFeedbackScreen> {
   final TextEditingController _messageController = TextEditingController();
+  final String _supportEmail = "thenujaasuntharesan@gmail.com";
+  bool _isSending = false;
 
-  void sendFeedback() async {
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Column(
+        children: [
+          // Header
+          Container(
+            width: double.infinity,
+            color: Color(0xFF89D0ED),
+            padding: EdgeInsets.only(top: 40, bottom: 15, left: 10, right: 20),
+            child: Row(
+              children: [
+                IconButton(
+                  icon: Icon(Icons.arrow_back, color: Colors.black),
+                  onPressed: () => Navigator.pop(context),
+                ),
+                Text(
+                  "Ask support",
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          Expanded(
+            child: Container(
+              color: Color(0xFFF0F9FD),
+              padding: EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Send us a message",
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Color(0xFF89D0ED),
+                    ),
+                  ),
+                  SizedBox(height: 10),
+                  Expanded(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        border: Border.all(color: Color(0xFF89D0ED)),
+                        borderRadius: BorderRadius.circular(5),
+                      ),
+                      child: TextField(
+                        controller: _messageController,
+                        maxLines: null,
+                        expands: true,
+                        decoration: InputDecoration(
+                          border: InputBorder.none,
+                          contentPadding: EdgeInsets.all(10),
+                          hintText: "Type your message here...",
+                          hintStyle: TextStyle(color: Colors.grey.shade400),
+                        ),
+                      ),
+                    ),
+                  ),
+                  Align(
+                    alignment: Alignment.bottomRight,
+                    child: Padding(
+                      padding: EdgeInsets.only(top: 10),
+                      child: ElevatedButton(
+                        onPressed: _isSending ? null : _sendFeedback,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Color(0xFF89D0ED),
+                          padding: EdgeInsets.symmetric(horizontal: 30, vertical: 10),
+                        ),
+                        child: _isSending
+                            ? SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            )
+                        )
+                            : Text("Send"),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _sendFeedback() async {
+    if (_messageController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Please enter a message")),
+      );
+      return;
+    }
+
+    setState(() {
+      _isSending = true;
+    });
+
+    try {
+      // Store message in Firestore
+      await _saveMessageToFirestore();
+
+      // Send email
+      await _sendSupportEmail();
+
+      // Clear message and show success
+      _messageController.clear();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Feedback sent successfully")),
+      );
+
+      // Return to previous screen
+      Navigator.pop(context);
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error sending feedback: ${e.toString()}")),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSending = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _saveMessageToFirestore() async {
+    try {
+      // Get current timestamp
+      final timestamp = DateTime.now();
+      final formattedDate = DateFormat('yyyy-MM-dd HH:mm:ss').format(timestamp);
+
+      // Save to Firestore
+      await FirebaseFirestore.instance.collection('feedback').add({
+        'message': _messageController.text,
+        'email': _supportEmail,
+        'timestamp': timestamp,
+        'formattedDate': formattedDate,
+        'status': 'pending', // Can be used for tracking response status
+      });
+    } catch (e) {
+      print("Error saving to Firestore: $e");
+      throw e;
+    }
+  }
+  Future<void> _sendSupportEmail() async {
     final Uri emailUri = Uri(
       scheme: 'mailto',
-      path: 'thenujaasuntharesan@gmail.com',
-      queryParameters: {
-        'subject': 'User Feedback',
-        'body': _messageController.text,
-      },
+      path: _supportEmail,
+      query: 'subject=myBete App Support&body=${Uri.encodeComponent(_messageController.text)}',
     );
 
     if (await canLaunch(emailUri.toString())) {
       await launch(emailUri.toString());
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error sending feedback")),
-      );
+      throw 'Could not launch email client';
     }
   }
-
-
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text("Support & Feedback")),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            TextField(
-              controller: _messageController,
-              decoration: InputDecoration(labelText: "Enter your feedback"),
-              maxLines: 5,
-            ),
-            SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: sendFeedback,
-              child: Text("Send Feedback"),
-            ),
-          ],
-        ),
-      ),
-    );
+  void dispose() {
+    _messageController.dispose();
+    super.dispose();
   }
 }
